@@ -1,0 +1,30 @@
+Description: "Template for creating Amazon-issued SSL certificates. Deploy to us-east-1 region only."
+
+Parameters:
+  DomainName:
+    Description: "The primary domain name for which the certificate is created."
+    Type: String
+  AlternativeNames:
+    Description: "The alternative domain names included in the certificate."
+    Type: CommaDelimitedList
+  ValidationDomain:
+    Description: "The domain name to be used for email validation."
+    Type: String
+
+Resources:
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          ValidationDomain: !Ref ValidationDomain
+      SubjectAlternativeNames: !Ref AlternativeNames
+      ValidationMethod: DNS
+
+Outputs:
+  CertificateArn:
+    Description: AWS Certificate ARN
+    Value: !Ref Certificate
+    Export:
+      Name: !Sub "${AWS::StackName}-CertificateArn"

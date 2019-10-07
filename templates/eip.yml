@@ -1,0 +1,20 @@
+Description: Creates a dedicated elastic IP.
+
+Resources:
+  EIP:
+    Type: AWS::EC2::EIP
+    DeletionPolicy: Retain
+    Properties:
+      Domain: vpc
+
+Outputs:
+  Address:
+    Description: IP Address of the Elastic IP.
+    Value: !Ref EIP
+    Export:
+      Name: !Sub ${AWS::StackName}-Address
+  AllocationId:
+    Description: Allocation ID of the Elastic IP.
+    Value: !GetAtt EIP.AllocationId
+    Export:
+      Name: !Sub ${AWS::StackName}-AllocationId

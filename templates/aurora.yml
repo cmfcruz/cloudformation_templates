@@ -1,0 +1,143 @@
+Description: >
+  Cloudformation template to build MySQL 5.7 Aurora Clusters
+  This template depends on the Cloudformation VPC stack.
+
+Parameters:
+  AdminUsername:
+    Description: "Database administrator user name."
+    Type: String
+  AdminPassword:
+    Description: "Database administrator password."
+    Type: String
+    MaxLength: 40
+    NoEcho: True
+  DBClusterIdentifier:
+    Description: "Unique identifier of the Aurora cluster."
+    Type: String
+  TagProduct:
+    Description: "Product name used for cost tagging resources."
+    Type: String
+  TagClient:
+    Description: "Client name used for cost tagging resources."
+    Type: String
+  VPCStackName:
+    Description: "Name of the VPC Cloudformation stack."
+    Type: String
+
+Resources:
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lambda access to Aurora.
+      VpcId: 
+        Fn::ImportValue:
+          Fn::Sub: "${VPCStackName}-VpcId"
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Aurora Cluster Security Group
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+      SecurityGroupIngress:
+        - CidrIp: 11.22.33.44/32
+          Description: Authorized Network
+          FromPort: 3306
+          IpProtocol: tcp
+          ToPort: 3306
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: "${VPCStackName}-VpcId"
+
+  SecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+        - LambdaSecurityGroup
+        - GroupId
+      GroupId:
+        Fn::GetAtt:
+        - DBSecurityGroup
+        - GroupId
+
+  DBSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties: 
+      DBSubnetGroupDescription: Aurora Cluster Subnet Group
+      SubnetIds:
+        - Fn::ImportValue:
+            Fn::Sub: "${VPCStackName}-PublicSubnetAId"
+        - Fn::ImportValue:
+            Fn::Sub: "${VPCStackName}-PublicSubnetBId"
+        - Fn::ImportValue:
+            Fn::Sub: "${VPCStackName}-PublicSubnetCId"
+
+  DBParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties: 
+      Description: Aurora Cluster Parameter Group
+      Family: aurora-mysql5.7
+      Parameters: 
+        max_connections : 500
+      Tags:
+        - Key: "Product"
+          Value: !Ref TagProduct
+        - Key: "Client"
+          Value: !Ref TagClient
+
+  DBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      BackupRetentionPeriod: 35
+      DBClusterIdentifier: !Ref DBClusterIdentifier
+      DBClusterParameterGroupName: !Ref DBParameterGroup 
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DeletionProtection: True
+      Engine: aurora-mysql
+      EngineMode: provisioned
+      MasterUserPassword: !Ref AdminPassword
+      MasterUsername: !Ref AdminUsername
+      PreferredBackupWindow: 16:00-17:00
+      PreferredMaintenanceWindow: Sun:17:00-Sun:18:00
+      StorageEncrypted: True
+      Tags:
+        - Key: "Product"
+          Value: !Ref TagProduct
+        - Key: "Client"
+          Value: !Ref TagClient
+      VpcSecurityGroupIds:
+        - !Ref DBSecurityGroup
+
+  MasterDBInstance:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      DBClusterIdentifier: 
+        Ref: DBCluster
+      DBInstanceClass: db.t3.small
+      DBInstanceIdentifier: aurora-master
+      DBSubnetGroupName: 
+        Ref: DBSubnetGroup
+      Engine: aurora-mysql
+      PubliclyAccessible: True
+
+Outputs:
+  WriteEndpoint:
+    Description: Connection endpoint for transactional writes.
+    Value: !GetAtt DBCluster.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-AuroraClusterWriteEndpoint"
+  ReadEndpoint:
+    Description: Connection endpoint for reads.
+    Value: !GetAtt DBCluster.ReadEndpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-AuroraClusterReadEndpoint"
+  LambdaSecurityGroupId:
+    Description: Security Group for Lambda Functions.
+    Value: !GetAtt LambdaSecurityGroup.GroupId
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaSecurityGroupId"

@@ -1,0 +1,342 @@
+Description: Cognito Setup
+
+Parameters:
+  UserPoolName:
+    Type: String
+    Description: Name of the user pool.
+  IdentityPoolName:
+    Type: String
+    Description: Name of the identity pool.
+  IAMStackName:
+    Type: String
+    Description: Name of the IAM stack with the Lambda role for Cognito SNS.
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties: 
+      AdminCreateUserConfig: 
+        AllowAdminCreateUserOnly: false
+        InviteMessageTemplate: 
+          EmailMessage: "Hi,\n\n<div style=\"visibility:hidden\">{username}</div>\nYour temporary password is {####}."
+          EmailSubject: "Your Temporary Password"
+          SMSMessage: "Your username is {username} and temporary password is {####}. "
+        UnusedAccountValidityDays: 7
+      AliasAttributes: 
+        - email
+        - phone_number
+        - preferred_username
+      AutoVerifiedAttributes: 
+        - email
+        - phone_number
+      EmailVerificationMessage: "Your verification code: {####} "
+      EmailVerificationSubject: "Verfication Code"
+      MfaConfiguration: "OPTIONAL"
+      Policies: 
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      Schema: 
+        - Name: sub
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: false
+          Required: true
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: name
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: given_name
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: family_name
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: middle_name
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: nickname
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: preferred_username
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: profile
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: picture
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: website
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: email
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: email_verified
+          AttributeDataType: Boolean
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+        - Name: gender
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: birthdate
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 10
+            MaxLength: 10
+        - Name: zoneinfo
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: locale
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: phone_number
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: address
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+        - Name: updated_at
+          AttributeDataType: Number
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          NumberAttributeConstraints: 
+            MinValue: 0
+        - Name: app_access
+          AttributeDataType: String
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints: 
+            MinLength: 1
+            MaxLength: 2048
+      SmsAuthenticationMessage: "Your verification code is {####}."
+      SmsConfiguration:
+        SnsCallerArn:
+          Fn::ImportValue: !Sub "${IAMStackName}-LambdaRoleArn"
+      SmsVerificationMessage: "Your verification code is {####}."
+      UserPoolName: !Ref UserPoolName
+
+  AdminUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties: 
+      ClientName: Admin
+      ExplicitAuthFlows: 
+        - ADMIN_NO_SRP_AUTH
+        - USER_PASSWORD_AUTH
+      GenerateSecret: false
+      RefreshTokenValidity: 30
+      UserPoolId: !Ref UserPool
+
+  WebUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties: 
+      ClientName: Web
+      GenerateSecret: false
+      RefreshTokenValidity: 30
+      UserPoolId: !Ref UserPool
+
+  IdentityPool:
+    Type: "AWS::Cognito::IdentityPool"
+    Properties:
+      IdentityPoolName: !Ref IdentityPoolName
+      AllowUnauthenticatedIdentities: true
+      CognitoIdentityProviders: 
+        - ClientId: !Ref AdminUserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+        - ClientId: !Ref WebUserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+
+  # Create a role for unauthorized acces to AWS resources. Very limited access. Only allows users in the previously created Identity Pool
+  CognitoUnAuthorizedRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal: 
+              Federated: "cognito-identity.amazonaws.com"
+            Action: 
+              - "sts:AssumeRoleWithWebIdentity"
+            Condition:
+              StringEquals: 
+                "cognito-identity.amazonaws.com:aud": !Ref IdentityPool
+              "ForAnyValue:StringLike":
+                "cognito-identity.amazonaws.com:amr": unauthenticated
+      Policies:
+        - PolicyName: "CognitoUnauthorizedPolicy"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: "Allow"
+                Action:
+                  - "mobileanalytics:PutEvents"
+                  - "cognito-sync:*"
+                Resource: "*"
+
+  # Create a role for authorized acces to AWS resources. Control what your user can access. This example only allows Lambda invokation
+  # Only allows users in the previously created Identity Pool
+  CognitoAuthorizedRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal: 
+              Federated: "cognito-identity.amazonaws.com"
+            Action: 
+              - "sts:AssumeRoleWithWebIdentity"
+            Condition:
+              StringEquals: 
+                "cognito-identity.amazonaws.com:aud": !Ref IdentityPool
+              "ForAnyValue:StringLike":
+                "cognito-identity.amazonaws.com:amr": authenticated
+      Policies:
+        - PolicyName: "CognitoAuthorizedPolicy"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: "Allow"
+                Action:
+                  - "mobileanalytics:PutEvents"
+                  - "cognito-sync:*"
+                  - "cognito-identity:*"
+                Resource: "*"
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource: "*"
+  
+  # Assigns the roles to the Identity Pool
+  IdentityPoolRoleMapping:
+    Type: "AWS::Cognito::IdentityPoolRoleAttachment"
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt CognitoAuthorizedRole.Arn
+        unauthenticated: !GetAtt CognitoUnAuthorizedRole.Arn
+
+Outputs:
+  UserPoolId:
+    Description: User Pool ID.
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolId"
+  UserPoolArn:
+    Description: User Pool ARN.
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolArn"
+  UserPoolProviderName:
+    Description: User Pool Provider Name.
+    Value: !GetAtt UserPool.ProviderName
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolProviderName"
+  UserPoolProviderURL:
+    Description: User Pool Provider URL.
+    Value: !GetAtt UserPool.ProviderURL
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolProviderURL"
+  AdminUserPoolClientId:
+    Description: User Pool Client ID for Admin web application.
+    Value: !Ref AdminUserPoolClient
+    Export:
+      Name: !Sub "${AWS::StackName}-AdminUserPoolClientId"
+  WebUserPoolClientId:
+    Description: User Pool Client ID for Customer web application.
+    Value: !Ref WebUserPoolClient
+    Export:
+      Name: !Sub "${AWS::StackName}-WebUserPoolClientId"
+  IdentityPoolId:
+    Description: Identity Pool ID.
+    Value: !Ref IdentityPool
+    Export:
+      Name: !Sub "${AWS::StackName}-IdentityPoolId"

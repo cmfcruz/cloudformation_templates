@@ -1,0 +1,80 @@
+Description: "Template for API Gateway deployment for reference of Serverless APIs."
+
+
+Parameters:
+  ApiName:
+    Description: "Name of the REST API Gateway."
+    Type: String
+  ApiDescription:
+    Description: "Description of the REST API Gateway."
+    Type: String
+  WebSocketName:
+    Description: "Name of the WebSocket API."
+    Type: String
+  WebSocketDescription:
+    Description: "Description of the WebSocket API."
+    Type: String
+  CognitoStackName:
+    Description: "Name of the Cognito Cloudformation Stack."
+    Type: String
+
+
+Resources:
+  ApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Ref ApiName
+      Description: !Ref ApiDescription
+      ApiKeySourceType: HEADER
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  ApiGatewayAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties: 
+      AuthType: cognito_user_pools
+      IdentitySource: method.request.header.Authorization
+      Name: !Sub "${ApiName}-authorizer"
+      ProviderARNs: 
+        - Fn::ImportValue:
+            Fn::Sub: "${CognitoStackName}-UserPoolArn"
+      RestApiId: !Ref ApiGateway
+      Type: COGNITO_USER_POOLS
+
+  WebSocketApiGateway:
+    Type:  AWS::ApiGatewayV2::Api
+    Properties: 
+      ApiKeySelectionExpression: "$request.header.x-api-key"
+      Description: !Ref WebSocketDescription
+      Name: !Ref WebSocketName
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
+
+
+Outputs:
+  ApiGatewayId:
+    Description: "The ID of the API Gateway to be used by Serverless applications."
+    Value: !Ref ApiGateway
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiGatewayId"
+  RootResourceId:
+    Description: "The Root Resource ID of the API Gateway."
+    Value: !GetAtt ApiGateway.RootResourceId
+    Export:
+      Name: !Sub "${AWS::StackName}-RootResourceId"
+  ApiGatewayAuthorizerId:
+    Description: "The API Gateway Authorizer ID refered to by the Serverless applications."
+    Value: !Ref ApiGatewayAuthorizer
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiGatewayAuthorizerId"
+  WebSocketApiGatewayId:
+    Description: "The ID of the WebSocket API to be used by Serverless Applications."
+    Value: !Ref WebSocketApiGateway
+    Export:
+      Name: !Sub "${AWS::StackName}-WebSocketApiGatewayId"
+  WebSocketApiGatewayName:
+    Description: "The name of the WebSocket API to be used by the Serverless Application."
+    Value: !Ref WebSocketName
+    Export:
+      Name: !Sub "${AWS::StackName}-WebSocketApiGatewayName"

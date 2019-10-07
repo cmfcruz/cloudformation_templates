@@ -1,0 +1,122 @@
+Description: >
+  Standard static web application hosting stack using S3 & Cloudfront.
+  Depends on the Lambda-At-Edge Cloudformation Stack.
+
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: "The globally unique bucket name to contain website files."
+    MaxLength: 63
+    MinLength: 3
+  CertificateARN:
+    Description: "The ARN of the SSL certificate to be used for Cloudfront."
+    Type: String
+  DistributionAliases:
+    Type: CommaDelimitedList
+    Description: "The list of domain names used by the Cloudfront distribution."
+  DefaultRootObject:
+    Type: String
+    Description: "The default page to be loaded when accessing the site using the base domain name."
+  ErrorPagePath:
+    Type: String
+    Description: "The default page to be loaded when an error is encountered. Should begin with '/'."
+  LambdaEdgeVersionArn:
+    Type: String
+    Description: "ARN of the Lambda@Edge including the version number."
+  ProductTag:
+    Type: String
+    Description: "Product tag for costing reference."
+  ClientTag:
+    Type: String
+    Description: "Client tag for costing reference."
+
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+        AccessControl: Private
+        BucketName: !Ref BucketName
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        VersioningConfiguration:
+          Status: Suspended
+        Tags:
+          - Key: Client
+            Value: !Ref ClientTag
+          - Key: Product
+            Value: !Ref ProductTag
+
+  CloudFrontOriginAccessIdentity:
+    Type: 'AWS::CloudFront::CloudFrontOriginAccessIdentity'
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Ref S3Bucket
+
+  S3BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Statement:
+        - Action: 's3:GetObject'
+          Effect: Allow
+          Resource: !Sub 'arn:aws:s3:::${S3Bucket}/*'
+          Principal:
+            CanonicalUser: !GetAtt CloudFrontOriginAccessIdentity.S3CanonicalUserId
+
+  CloudFrontDistribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Aliases: !Ref DistributionAliases
+        CustomErrorResponses:
+        - ErrorCode: 403
+          ResponseCode: 200
+          ResponsePagePath: !Ref ErrorPagePath
+        DefaultCacheBehavior:
+          ForwardedValues:
+            QueryString: false
+          LambdaFunctionAssociations:
+            - EventType: origin-response
+              LambdaFunctionARN: !Ref LambdaEdgeVersionArn
+          TargetOriginId: s3origin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: !Ref DefaultRootObject
+        Enabled: true
+        HttpVersion: http2
+        Origins:
+        - DomainName: !GetAtt 'S3Bucket.DomainName'
+          Id: s3origin
+          S3OriginConfig:
+            OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}'
+        PriceClass: PriceClass_200
+        ViewerCertificate:
+          SslSupportMethod: sni-only
+          AcmCertificateArn: !Ref CertificateARN
+      Tags:
+        - Key: Client
+          Value: !Ref ClientTag
+        - Key: Product
+          Value: !Ref ProductTag
+
+
+Outputs:
+  WebsiteBucket:
+    Description: "The bucket containin the website files."
+    Value: !Ref S3Bucket
+    Export:
+      Name: !Sub "${AWS::StackName}-BucketName"
+  DistributionID:
+    Description: "The Cloudfront distribution ID for the website."
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub "${AWS::StackName}-DistributionID"
+  DistributionDomainName:
+    Description: "The Cloudfront distribution domain name."
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-DistributionDomain"
