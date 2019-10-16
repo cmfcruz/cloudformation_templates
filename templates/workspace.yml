@@ -1,0 +1,37 @@
+Description: "Creates an AWS Workspace."
+
+Parameters:
+  BundleId:
+    Description: The specification of the workspace to be created.
+    Type: String
+  DirectoryId:
+    Description: >
+      The existing AWS Workspaces directory where the workspace
+      is to be added.
+    Type: String
+  Username:
+    Description: >
+      Existing username in the AWS Workspaces directory to be used to log
+      into the workspace.  Must have an e-mail address.
+    Type: String
+
+Resources:
+  Workspace:
+    Type: AWS::WorkSpaces::Workspace
+    Properties:
+      BundleId: !Ref BundleId
+      DirectoryId: !Ref DirectoryId
+      RootVolumeEncryptionEnabled: True
+      UserName: !Ref Username
+      UserVolumeEncryptionEnabled: True
+      VolumeEncryptionKey: alias/aws/workspaces
+      WorkspaceProperties:
+        RunningMode: AUTO_STOP
+        RunningModeAutoStopTimeoutInMinutes: 60
+
+Outputs:
+  WorkspaceId:
+    Description: Resource name of the workspace.
+    Value: !Ref Workspace
+    Export:
+      Name: !Sub "${AWS::StackName}-WorkspaceId"
