@@ -1,0 +1,74 @@
+Description: Creates a PostgreSQL 11 RDS multi-AZ instance with disk encryption.
+
+Parameters:
+  VpcId:
+    Description: ID of the VPC where the RDS is to reside.
+    Type: String
+  LambdaSecurityGroupId:
+    Description: ID of the security group used by Lambda functions.
+    Type: String
+  DBSnapshotArn:
+    Description: ARN of the DB snapshot for restoration.
+    Type: String
+  DBInstanceIdentifier:
+    Description: The name of the RDS instance.
+    Type: String
+  AdminUsername:
+    Description: The adminstrator username of the RDS Instance.
+    Type: String
+  SubnetIds:
+    Description: Subnets where the RDS instance can be launched.
+    Type: CommaDelimitedList
+
+Resources:
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to RDS.
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+      VpcId: !Ref VpcId
+
+  DBSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref LambdaSecurityGroupId
+      GroupId:
+        Fn::GetAtt:
+        - DBSecurityGroup
+        - GroupId
+
+  DBSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: !Sub "${AWS::StackName} RDS Subnet Group"
+      SubnetIds: !Ref SubnetIds
+
+  DBInstance:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      AllocatedStorage: 20
+      AutoMinorVersionUpgrade: True
+      BackupRetentionPeriod: 7
+      CopyTagsToSnapshot: True
+      DBInstanceClass: db.t3.small
+      DBInstanceIdentifier: !Ref DBInstanceIdentifier
+      DBSnapshotIdentifier: !Ref DBSnapshotArn
+      DBSubnetGroupName:
+        Ref: DBSubnetGroup
+      DeleteAutomatedBackups: False
+      DeletionProtection: True
+      Engine: postgres
+      EngineVersion: 11.4
+      MasterUsername: !Ref AdminUsername
+      MultiAZ: True
+      PubliclyAccessible: True
+      StorageEncrypted: True
+      StorageType: gp2
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+    DeletionPolicy: Snapshot
