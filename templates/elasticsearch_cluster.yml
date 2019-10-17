@@ -1,0 +1,137 @@
+Description: >
+  Creates an Elasticsearch cluster.  Encryption-at-rest is automatically
+  enabled when the selected instance type supports disk encryption.
+
+Parameters:
+  DomainName:
+    Description: Domain name identifier of the Elasticsearch cluster.
+    Type: String
+  ElasticsearchVersion:
+    Description: Version of Elasticsearch to be used by the cluster.
+    Type: String
+  InstanceType:
+    Description: Instance type of the cluster members.
+    Type: String
+  InstanceCount:
+    Description: Number of member nodes for the cluster.
+    Type: Number
+  DedicatedMasterEnabled:
+    Description: Enable use of a master node.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+  DedicatedMasterType:
+    Description: Instance type of the cluster master nodes. Default is t2.small.elasticsearch
+    Type: String
+  DedicatedMasterCount:
+    Description: Number of master nodes for the cluster. 3 is recommended for production.
+    Type: Number
+  LambdaSecurityGroupId:
+    Description: Security group ID used by Lambda functions.
+    Type: AWS::EC2::SecurityGroup::Id
+  AvailabilityZoneCount:
+    Description: Number of availability zones to deploy to. 3 is recommended for production.
+    Type: Number
+  SubnetIds:
+    Description: The list of IDs of subnets where the cluster members can be created.
+    Type: List<AWS::EC2::Subnet::Id>
+  VpcId:
+    Description: ID of the VPC where the cluster members can be created.
+    Type: AWS::EC2::VPC::Id
+  ZoneAwarenessEnabled:
+    Description: Enable zone awareness when using more than 1 availability zone.
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+
+
+Conditions:
+  DedicatedMasterIsEnabled: !Equals [!Ref DedicatedMasterEnabled, true]
+  ZoneAwarenessIsEnabled: !Equals [!Ref ZoneAwarenessEnabled, true]
+  InstanceSupportsEncryption:
+      Fn::And:
+        - Fn::Not:
+            - Fn::Equals:
+                - "t2"
+                - !Select [0, !Split [".", !Ref InstanceType]]
+        - Fn::Not:
+            - Fn::Equals:
+                - "m3"
+                - !Select [0, !Split [".", !Ref InstanceType]]
+        - Fn::Not:
+            - Fn::Equals:
+                - "r3"
+                - !Select [0, !Split [".", !Ref InstanceType]]
+
+
+Resources:
+  ElasticsearchSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to Elasticsearch.
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+      VpcId: !Ref VpcId
+
+  ElasticsearchSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref LambdaSecurityGroupId
+      GroupId:
+        Fn::GetAtt:
+        - ElasticsearchSecurityGroup
+        - GroupId
+
+  Elasticsearch:
+    Type:  AWS::Elasticsearch::Domain
+    Properties:
+      AccessPolicies: !Sub "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::${AWS::AccountId}:root\"},\"Action\":\"es:*\",\"Resource\":\"arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${DomainName}/*\"}]}"
+      DomainName: !Ref DomainName
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp2
+        VolumeSize: 10
+      ElasticsearchClusterConfig:
+        DedicatedMasterCount: !If
+            - DedicatedMasterIsEnabled
+            - !Ref DedicatedMasterCount
+            - !Ref AWS::NoValue
+        DedicatedMasterEnabled: !Ref DedicatedMasterEnabled
+        DedicatedMasterType: !If
+          - DedicatedMasterIsEnabled
+          - !Ref DedicatedMasterType
+          - !Ref AWS::NoValue
+        InstanceType: !Ref InstanceType
+        InstanceCount: !Ref InstanceCount
+        ZoneAwarenessConfig: !If
+          - ZoneAwarenessIsEnabled
+          - AvailabilityZoneCount: !Ref AvailabilityZoneCount
+          - !Ref AWS::NoValue
+        ZoneAwarenessEnabled: !Ref ZoneAwarenessEnabled
+      ElasticsearchVersion: !Ref ElasticsearchVersion
+      EncryptionAtRestOptions:
+        Enabled: !If
+          - InstanceSupportsEncryption
+          - true
+          - false
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      VPCOptions:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds:
+          - !Ref ElasticsearchSecurityGroup
+
+Outputs:
+  ElasticsearchDomainEndpoint:
+    Description: The domain-specific endpoint that's used to submit index, search, and data upload requests to an Amazon ES domain.
+    Value: !GetAtt Elasticsearch.DomainEndpoint
