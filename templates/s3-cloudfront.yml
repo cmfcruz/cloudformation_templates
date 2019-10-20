@@ -18,18 +18,6 @@ Parameters:
   DefaultRootObject:
     Type: String
     Description: "The default page to be loaded when accessing the site using the base domain name."
-  ErrorPagePath:
-    Type: String
-    Description: "The default page to be loaded when an error is encountered. Should begin with '/'."
-  LambdaEdgeVersionArn:
-    Type: String
-    Description: "ARN of the Lambda@Edge including the version number."
-  ProductTag:
-    Type: String
-    Description: "Product tag for costing reference."
-  ClientTag:
-    Type: String
-    Description: "Client tag for costing reference."
 
 
 Resources:
@@ -42,13 +30,20 @@ Resources:
           ServerSideEncryptionConfiguration:
             - ServerSideEncryptionByDefault:
                 SSEAlgorithm: AES256
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - *
+              AllowedMethods:
+                - DELETE
+                - GET
+                - HEAD
+                - POST
+                - PUT
+              ExposedHeaders:
+                - ETag
         VersioningConfiguration:
           Status: Suspended
-        Tags:
-          - Key: Client
-            Value: !Ref ClientTag
-          - Key: Product
-            Value: !Ref ProductTag
 
   CloudFrontOriginAccessIdentity:
     Type: 'AWS::CloudFront::CloudFrontOriginAccessIdentity'
@@ -73,16 +68,15 @@ Resources:
     Properties:
       DistributionConfig:
         Aliases: !Ref DistributionAliases
-        CustomErrorResponses:
-        - ErrorCode: 403
-          ResponseCode: 200
-          ResponsePagePath: !Ref ErrorPagePath
         DefaultCacheBehavior:
           ForwardedValues:
+            Headers:
+              - Access-Control-Request-Headers
+              - Access-Control-Request-Method
+              - Authorization
+              - Origin
+              - Referer
             QueryString: false
-          LambdaFunctionAssociations:
-            - EventType: origin-response
-              LambdaFunctionARN: !Ref LambdaEdgeVersionArn
           TargetOriginId: s3origin
           ViewerProtocolPolicy: redirect-to-https
         DefaultRootObject: !Ref DefaultRootObject
@@ -97,11 +91,6 @@ Resources:
         ViewerCertificate:
           SslSupportMethod: sni-only
           AcmCertificateArn: !Ref CertificateARN
-      Tags:
-        - Key: Client
-          Value: !Ref ClientTag
-        - Key: Product
-          Value: !Ref ProductTag
 
 
 Outputs:
