@@ -33,7 +33,7 @@ Resources:
         CorsConfiguration:
           CorsRules:
             - AllowedHeaders:
-                - *
+                - '*'
               AllowedMethods:
                 - DELETE
                 - GET
