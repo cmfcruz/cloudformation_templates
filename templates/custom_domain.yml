@@ -1,0 +1,25 @@
+Description: A custom domain to mask API Gateway addresses.
+
+Parameters:
+  CertificateARN:
+    Type: String
+  DomainName:
+    Type: String
+
+Resources:
+  CustomDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      CertificateArn: !Ref CertificateARN
+      DomainName: !Ref DomainName
+      EndpointConfiguration:
+        Types:
+          - EDGE
+      SecurityPolicy: TLS_1_2
+
+Outputs:
+  DistributionDomainName:
+    Description: Domain name where the CNAME of the custom domain name should point to.
+    Value: !GetAtt CustomDomainName.DistributionDomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-DistributionDomainName"
